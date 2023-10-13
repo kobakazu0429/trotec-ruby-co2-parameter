@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trotec Ruby CO2 パラメーター出し</title>
+    <style>
+      .grid {
+        display: grid;
+        grid-column-gap: 0px;
+        grid-row-gap: 0px;
+      }
+
+      .row-gap {
+        grid-row-gap: 30px;
+      }
+
+      .col-2 {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .row-1 {
+        grid-template-rows: 1fr;
+      }
+      .row-3 {
+        grid-template-rows: repeat(3, 1fr);
+      }
+      .row-4 {
+        grid-template-rows: repeat(4, 1fr);
+      }
+      .row-5 {
+        grid-template-rows: repeat(5, 1fr);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Trotec Ruby CO2 パラメーター出し</h1>
+    <p>出力が強い・スピードが遅いなどで焦げたり燃える場合があります。</p>
+    <p>
+      本サイトの使用は使用者の自己責任であることを承知の上でご利用ください。
+    </p>
+    <hr />
+    <div class="grid col-2 row-gap">
+      <div class="grid col-2 row-5">
+        <div><span>Ruby Version</span></div>
+        <div><input type="text" id="ruby_version" value="2.6.0.32165" /></div>
+        <div><span>サイズ</span></div>
+        <div><input type="number" id="size" value="5" min="1" />mm</div>
+        <div><span>間隔</span></div>
+        <div><input type="number" id="margin" value="5" min="0" />mm</div>
+        <div><span>回数</span></div>
+        <div><input type="number" id="times" value="1" min="1" />回</div>
+        <div><span>解像度</span></div>
+        <div>
+          <select id="dpi">
+            <option value="125">125</option>
+            <option value="250">250</option>
+            <option value="333">333</option>
+            <option value="500">500</option>
+            <option value="600">600</option>
+            <option value="600">600</option>
+            <option value="1000">1000</option></select
+          >DPI
+        </div>
+      </div>
+
+      <div class="grid col-2 row-5">
+        <div><span>Zオフセット</span></div>
+        <div><input type="number" id="z_offset" value="0" min="0" />mm</div>
+        <div><span>方向</span></div>
+        <div>
+          <select id="direction">
+            <option value="TopDown">トップダウン：上から下</option>
+            <option value="BottomUp">ボトムアップ：下から上</option>
+            <option value="TopDownAlt">トップダウン(交互)</option>
+            <option value="BottomUpAlt">ボトムアップ(交互)</option>
+          </select>
+        </div>
+        <div><span>彫刻モード</span></div>
+        <div>
+          <select id="engrave_mode">
+            <option value="Standard">スタンダード</option>
+            <option value="Unidirectional">一方向</option>
+          </select>
+        </div>
+        <div><span>ディザリング</span></div>
+        <div>
+          <select id="dithering">
+            <option value="None">なし</option>
+            <option value="Ordered">ディザ生成</option>
+            <option value="Stucki">ストゥッキ</option>
+            <option value="FloydSteinberg">フロイド・スタインバーグ</option>
+            <option value="JarvisJudiceNinke">ジャービス</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid col-2 row-3">
+        <div>
+          <span>最小出力</span>
+        </div>
+        <div>
+          <input type="number" id="min_power" value="1" max="100" min="0" />%
+        </div>
+        <div>
+          <span>最大出力</span>
+        </div>
+        <div>
+          <input type="number" id="max_power" value="4" max="100" min="0" />%
+        </div>
+        <div>
+          <span>インターバル</span>
+        </div>
+        <div>
+          <input
+            type="number"
+            id="power_interval"
+            value="1"
+            max="100"
+            min="0"
+          />%
+        </div>
+      </div>
+
+      <div class="grid col-2 row-3">
+        <div>
+          <span>最小スピード</span>
+        </div>
+        <div>
+          <input type="number" id="min_speed" value="0.5" max="100" min="0" />%
+        </div>
+        <div>
+          <span>最大スピード</span>
+        </div>
+        <div>
+          <input type="number" id="max_speed" value="2" max="100" min="0" />%
+        </div>
+        <div>
+          <span>インターバル</span>
+        </div>
+        <div>
+          <input
+            type="number"
+            id="speed_interval"
+            value="0.5"
+            max="100"
+            min="0"
+          />%
+        </div>
+      </div>
+
+      <div>
+        <a id="dl" href="#" class="inactive">ダウンロードする</a>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/prettier@2.6.2/standalone.js"></script>
+    <script src="https://unpkg.com/prettier@2.6.2/parser-html.js"></script>
+    <script src="https://unpkg.com/just-debounce-it@3.0.1/index.js"></script>
+    <script src="https://unpkg.com/fflate@0.8.0"></script>
+    <script>
+      // modify from: https://github.com/angus-c/just/blob/master/packages/array-range/index.js
+      // include stop value
+      // range(0, 20, 5) // [0, 5, 10, 15, 20]
+      function range(start, stop, step) {
+        if (start != null && typeof start !== "number") {
+          throw new Error("start must be a number or null");
+        }
+        if (stop != null && typeof stop !== "number") {
+          throw new Error("stop must be a number or null");
+        }
+        if (step != null && typeof step !== "number") {
+          throw new Error("step must be a number or null");
+        }
+        if (step === 0) {
+          throw new Error("step must not be 0");
+        }
+        if (stop == null) {
+          stop = start || 0;
+          start = 0;
+        }
+        if (step == null) {
+          step = stop > start ? 1 : -1;
+        }
+        var toReturn = [];
+        var increasing = start <= stop; //← here’s the change
+        for (; increasing ? start <= stop : start > stop; start += step) {
+          toReturn.push(start);
+        }
+        return toReturn;
+      }
+    </script>
+    <script>
+      function handleDownload(filename, content) {
+        const blob = new Blob([content]);
+        const url = URL.createObjectURL(blob);
+        const el = document.getElementById("dl");
+        el.href = url;
+        el.download = filename;
+      }
+    </script>
+    <script>
+      // Trotec Ruby supported colors
+      const COLORS = [
+        "000000",
+        "FF0000",
+        "0000FF",
+        "336699",
+        "00FFFF",
+        "00FF00",
+        "009933",
+        "006633",
+        "999933",
+        "996633",
+        "663300",
+        "660066",
+        "9900CC",
+        "FF00FF",
+        "FFFF00",
+        "FF6600",
+      ];
+
+      /**
+       * @type {(options: {prefix?: string; power:string|number; speed:string|number}) => string}
+       */
+      function genId({ prefix, power, speed }) {
+        return [prefix, power, speed].filter(Boolean).join("-");
+      }
+
+      /**
+       * @type {(style: "Fill" | "Stroke") => object}
+       */
+      function createPen(style) {
+        return {
+          width: 0,
+          style,
+          clipMode: "NonZero",
+          tipStyle: "Butt",
+          joinStyle: "Miter",
+          miterLimit: 10,
+        };
+      }
+
+      /**
+       * @type {(options: {
+       *     id: number,
+       *     name: string,
+       *     layer: string,
+       *     power: number,
+       *     speed: number,
+       *     dpi: string,
+       *     zOffset: number
+       *     passes: "1",
+       *     powerCorrection: "20",
+       *     direction: "TopDown" | "BottomUp" | "TopDownAlt" | "BottomUpAlt",
+       *     engraveMode: "Standard" | "Unidirectional",
+       *     borderMoveMode: "HQ" | "Standard",
+       *     relief: "0" | "1",
+       *     dithering: "FloydSteinberg" | "JarvisJudiceNinke" | "None" | "Ordered" | "Stucki",
+       *     engraveOver: "0" | "1"
+       *   }) => object
+       * }
+       */
+      const createEngraveParamater = ({
+        id,
+        name,
+        layer,
+        power,
+        speed,
+        dpi,
+        zOffset,
+        passes,
+        powerCorrection,
+        direction,
+        engraveMode,
+        borderMoveMode,
+        relief,
+        dithering,
+        engraveOver,
+      }) => {
+        return {
+          id,
+          name,
+          layers: [layer],
+          process: "Engrave",
+          enabled: 1,
+          elements: [
+            {
+              key: "Power",
+              stringValue: power.toString(),
+            },
+            {
+              key: "Speed",
+              stringValue: speed.toString(),
+            },
+            {
+              key: "Dpi",
+              stringValue: dpi,
+            },
+            {
+              key: "Source",
+              stringValue: "CO2",
+            },
+            {
+              key: "AirAssist",
+              stringValue: "AirAssist",
+            },
+            {
+              key: "ZOffset",
+              stringValue: zOffset.toString(),
+            },
+            {
+              key: "Passes",
+              stringValue: passes,
+            },
+            {
+              key: "PowerCorrection",
+              stringValue: powerCorrection,
+            },
+            {
+              key: "Direction",
+              stringValue: direction,
+            },
+            {
+              key: "EngraveMode",
+              stringValue: engraveMode,
+            },
+            {
+              key: "BorderMoveMode",
+              stringValue: borderMoveMode,
+            },
+            {
+              key: "Relief",
+              stringValue: relief,
+            },
+            {
+              key: "Dithering",
+              stringValue: dithering,
+            },
+            {
+              key: "EngraveOver",
+              stringValue: engraveOver,
+            },
+            {
+              key: "Frequency",
+              stringValue: "1000",
+            },
+          ],
+          regmarkType: "None",
+        };
+      };
+
+      /**
+       * @type {(options: {
+       *   powers: number[],
+       *   speeds: number[],
+       *   margin: number,
+       *   leftMargin: number,
+       *   topMargin: number,
+       *   size: number,
+       *   dpi: string,
+       *   zOffset?: number
+       *   passes?: "1",
+       *   powerCorrection?: "20",
+       *   direction?: "TopDown" | "BottomUp" | "TopDownAlt" | "BottomUpAlt",
+       *   engraveMode?: "Standard" | "Unidirectional",
+       *   borderMoveMode?: "HQ" | "Standard",
+       *   relief?: "0" | "1",
+       *   dithering?: "FloydSteinberg" | "JarvisJudiceNinke" | "None" | "Ordered" | "Stucki",
+       *   engraveOver?: "0" | "1"
+       * }) => object}
+       */
+      function createData({
+        powers,
+        speeds,
+        margin,
+        leftMargin,
+        topMargin,
+        size,
+        dpi,
+        zOffset = 0,
+        passes = "1",
+        powerCorrection = "20",
+        direction = "BottomUp",
+        engraveMode = "Standard",
+        borderMoveMode = "Standard",
+        relief = "0",
+        dithering = "Ordered",
+        engraveOver = "0",
+      }) {
+        const data = {
+          payload: {
+            positionedDesigns: [],
+            snapMarkers: [],
+            designs: [],
+            virtualDesign: {
+              documentTransform: [1, 0, 0, 1, 0, 0],
+              pens: {
+                1: createPen("Fill"),
+              },
+              paths: {},
+              items: [],
+            },
+            material: {
+              name: "パラメーター",
+              order: 0,
+              thickness: 3,
+              deviceSn: "S4-5723",
+              tags: [],
+              effects: [],
+              id: "00000000-0000-0000-0000-000000000000",
+              isDeleted: 0,
+              updatedOn: "2023-01-01T09:00:00.00Z",
+              createdOn: "2023-01-01T09:00:00.00Z",
+            },
+          },
+          name: "パラメーター出し",
+          isRotary: 0,
+          rotaryWorkpieceDiameter: 100,
+          tags: [],
+          version: 1,
+          visionCompensationKind: "NonLinear",
+          preprocessingOptions: {
+            innerGeometryFirst: "true",
+            skipOverlappingCutLines: "false",
+            processBeziers: "false",
+            stampMode: "false",
+            slopeRadius: "0.8",
+            linksMode: "false",
+          },
+          isReadOnly: 0,
+          id: "00000000-0000-0000-0000-000000000000",
+          isDeleted: 0,
+          updatedOn: "2023-01-01T09:00:00.00Z",
+          createdOn: "2023-01-01T09:00:00.00Z",
+        };
+
+        powers.forEach((power, row) => {
+          speeds.forEach((speed, column) => {
+            const left = (size + margin) * row + leftMargin;
+            const top = (size + margin) * column + topMargin;
+
+            const key = genId({ power, speed });
+            const id = row * powers.length + column + 1;
+
+            const color = COLORS[id - 1];
+
+            const item = {
+              kind: "Rectangle",
+              penRef: 1,
+              lFactor: 0,
+              size: {
+                width: size,
+                height: size,
+              },
+              transform: [1, 0, 0, 1, left, top],
+              layer: color,
+            };
+
+            const paramater = createEngraveParamater({
+              id,
+              name: key,
+              layer: color,
+              power,
+              speed,
+              dpi,
+              zOffset,
+              passes,
+              powerCorrection,
+              direction,
+              engraveMode,
+              borderMoveMode,
+              relief,
+              dithering,
+              engraveOver,
+            });
+            // @ts-expect-error
+            data.payload.material.effects.push(paramater);
+            // @ts-expect-error
+            data.payload.virtualDesign.items.push(item);
+          });
+        });
+
+        return data;
+      }
+    </script>
+    <script>
+      const rubyVersion = document.getElementById("ruby_version");
+
+      const minPower = document.getElementById("min_power");
+      const maxPower = document.getElementById("max_power");
+      const powerInterval = document.getElementById("power_interval");
+      const minSpeed = document.getElementById("min_speed");
+      const maxSpeed = document.getElementById("max_speed");
+      const speedInterval = document.getElementById("speed_interval");
+
+      const zOffset = document.getElementById("z_offset");
+      const direction = document.getElementById("direction");
+      const engraveMode = document.getElementById("engrave_mode");
+      const dithering = document.getElementById("dithering");
+
+      function generate() {
+        if (minPower.valueAsNumber > maxPower.valueAsNumber)
+          throw new Error("minPower.valueAsNumber > maxPower.valueAsNumber");
+
+        if (minSpeed.valueAsNumber > maxSpeed.valueAsNumber)
+          throw new Error("minSpeed.valueAsNumber > maxSpeed.valueAsNumber");
+
+        const powers = range(
+          minPower.valueAsNumber,
+          maxPower.valueAsNumber,
+          powerInterval.valueAsNumber
+        );
+        const speeds = range(
+          minSpeed.valueAsNumber,
+          maxSpeed.valueAsNumber,
+          speedInterval.valueAsNumber
+        );
+
+        if (powers.length * speeds.length > COLORS.length) {
+          alert(
+            `パワー(${powers.length})、スピード(${speeds.length})の組み合わせは、${COLORS.length}以下でないといけません。`
+          );
+          return;
+        }
+
+        const margin = document.getElementById("margin").valueAsNumber;
+        const leftMargin = margin;
+        const topMargin = margin;
+
+        const times = document.getElementById("times").valueAsNumber;
+        const size = document.getElementById("size").valueAsNumber;
+        const dpi = document.getElementById("dpi").value;
+
+        return createData({
+          powers,
+          speeds,
+          margin,
+          leftMargin,
+          topMargin,
+          times,
+          size,
+          dpi,
+          direction: direction.value,
+          engraveMode: engraveMode.value,
+          dithering: dithering.value,
+          zOffset: zOffset.valueAsNumber,
+        });
+      }
+
+      const downloadButtonEl = document.getElementById("dl");
+      downloadButtonEl.addEventListener("click", () => {
+        const json = generate();
+        const body = JSON.stringify(json);
+        const zipped = fflate.zipSync({
+          _workbench: {
+            [json.id]: fflate.strToU8(body),
+          },
+          _rubyVersion: fflate.strToU8(rubyVersion.value),
+        });
+        handleDownload("job.tlj", zipped);
+      });
+    </script>
+  </body>
+</html>
