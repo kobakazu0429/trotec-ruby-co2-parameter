@@ -522,7 +522,9 @@
           alert(
             `パワー(${powers.length})、スピード(${speeds.length})の組み合わせは、${COLORS.length}以下でないといけません。`
           );
-          return;
+          throw new Error(
+            `powers=${powers.length} * speeds=${speeds.length} > ${COLORS.length}`
+          );
         }
 
         const margin = document.getElementById("margin").valueAsNumber;
@@ -551,15 +553,19 @@
 
       const downloadButtonEl = document.getElementById("dl");
       downloadButtonEl.addEventListener("click", () => {
-        const json = generate();
-        const body = JSON.stringify(json);
-        const zipped = fflate.zipSync({
-          _workbench: {
-            [json.id]: fflate.strToU8(body),
-          },
-          _rubyVersion: fflate.strToU8(rubyVersion.value),
-        });
-        handleDownload("job.tlj", zipped);
+        try {
+          const json = generate();
+          const body = JSON.stringify(json);
+          const zipped = fflate.zipSync({
+            _workbench: {
+              [json.id]: fflate.strToU8(body),
+            },
+            _rubyVersion: fflate.strToU8(rubyVersion.value),
+          });
+          handleDownload("job.tlj", zipped);
+        } catch (error) {
+          throw error;
+        }
       });
     </script>
   </body>
